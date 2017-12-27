@@ -1,6 +1,6 @@
 (*
-* OCaml binding for botan (http://botan.randombit.net)
-* (C) 2015 Jack Lloyd
+* OCaml binding for botan (https://botan.randombit.net)
+* (C) 2015,2017 Jack Lloyd
 *
 * Botan is released under the Simplified BSD License (see license.txt)
 *)
@@ -59,6 +59,19 @@ module Botan = struct
     let rc = hex_encode bin (to_size_t bin_len) hex (to_uint32 0) in
     result_or_exn rc (string_from_ptr hex hex_len)
 
+  let hex_decode hex =
+    let hex_decode =
+      foreign "botan_hex_decode" (string @-> size_t @-> ptr char @-> ptr size_t @-> returning int) in
+    let hex_len = String.length hex in
+    let bin_len = hex_len/2 in
+    let bin = allocate_n ~count:bin_len char in
+    let ol = allocate_n ~count:1 size_t in
+    begin
+       ol <-@ (to_size_t bin_len);
+       let rc = hex_decode hex (to_size_t hex_len) bin ol in
+       result_or_exn rc (string_from_ptr bin bin_len)
+    end
+
   (* Bcrypt *)
   let bcrypt pass rng work_factor =
     let bcrypt =
@@ -76,7 +89,7 @@ module Botan = struct
     let rc = check_bcrypt pass hash in
     match rc with
     | 0 -> true
-    | -100 -> false
+    | 1 -> false
     | _ as ec -> raise (Botan_Error ec)
 
   module Hash = struct
@@ -126,6 +139,58 @@ module Botan = struct
 
   end (* Hash *)
 
+  module MAC = struct
+    type t = unit ptr
+    let mac_t : t typ = ptr void
+
+    let create name =
+      let mac_init =
+        foreign "botan_mac_init" (ptr mac_t @-> string @-> uint32_t @-> returning int) in
+      let o = allocate_n ~count:1 mac_t in
+      let rc = mac_init o name (to_uint32 0) in
+      result_or_exn rc (!@ o)
+
+    let destroy mac =
+      let mac_destroy =
+        foreign "botan_mac_destroy" (mac_t @-> returning int) in
+      let rc = mac_destroy mac in
+      result_or_exn rc ()
+
+    let output_length mac =
+      let mac_output_length =
+        foreign "botan_mac_output_length" (mac_t @-> ptr size_t @-> returning int) in
+      let ol = allocate_n ~count:1 size_t in
+      let rc = mac_output_length mac ol in
+      result_or_exn rc (Unsigned.Size_t.to_int (!@ ol))
+
+    let clear mac =
+      let mac_clear =
+        foreign "botan_mac_clear" (mac_t @-> returning int) in
+      let rc = mac_clear mac in
+      result_or_exn rc ()
+
+    let set_key mac key =
+      let mac_set_key = foreign "botan_mac_set_key" (mac_t @-> string @-> size_t @-> returning int) in
+      let rc = mac_set_key mac key (to_size_t (String.length key)) in
+      result_or_exn rc ()
+
+    let update mac input =
+      let mac_update =
+        foreign "botan_mac_update" (mac_t @-> string @-> size_t @-> returning int) in
+      let input_len = (String.length input) in
+      let rc = mac_update mac input (to_size_t input_len) in
+      result_or_exn rc ()
+
+    let final mac =
+      let mac_final =
+        foreign "botan_mac_final" (mac_t @-> ptr char @-> returning int) in
+      let ol = output_length mac in
+      let res = allocate_n ~count:ol char in
+      let rc = mac_final mac res in
+      result_or_exn rc (string_from_ptr res ol)
+
+  end (* MAC *)
+
   module RNG = struct
     type t = unit ptr
     let rng_t : t typ = ptr void
@@ -169,11 +234,28 @@ module Botan = struct
 end (* Botan *)
 
 let () =
-  let rng = Botan.RNG.create "system" in
+  let mac = Botan.MAC.create "HMAC(SHA-256)" in
+  let key = Botan.hex_decode "F00FB00F" in
+  begin
+      Botan.MAC.set_key mac key;
+      Botan.MAC.update mac "hi chappy";
+      print_string (Botan.hex_encode (Botan.MAC.final mac) ^ "\n")
+  end
+
+(*
+let () =
+  let key = Botan.hex_decode("414243") in
+  print_string (key)
+*)
+
+(*
+let () =
+  let rng = Botan.RNG.create "user" in
   let bcrypt = Botan.bcrypt "pass" rng 10 in
   let ok = Botan.check_bcrypt "pass" bcrypt in
   let nok = Botan.check_bcrypt "something else" bcrypt in
   print_string (Printf.sprintf "%s %B %B\n" bcrypt ok nok)
+
 
 let () =
   let (maj,min,patch) = Botan.version in
@@ -187,3 +269,5 @@ let () =
     print_string (Botan.hex_encode (Botan.Hash.final h) ^ "\n");
     Botan.Hash.destroy h
   end
+*)
+

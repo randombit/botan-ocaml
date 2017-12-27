@@ -1,8 +1,7 @@
 (*
-* OCaml binding for botan (http://botan.randombit.net)
-* (C) 2015 Jack Lloyd
+* OCaml binding for botan (https://botan.randombit.net)
+* (C) 2015,2017 Jack Lloyd
 *
-* 
 *)
 
 
@@ -13,6 +12,7 @@ module Botan : sig
   val ffi_version : int
 
   val hex_encode : string -> string
+  val hex_decode : string -> string
 
   module RNG : sig
     type t
@@ -30,6 +30,17 @@ module Botan : sig
     val create : string -> t
     val destroy: t -> unit (* TODO: GC finalize instead *)
     val output_length : t -> int
+    val clear : t -> unit
+    val update : t -> string -> unit
+    val final: t -> string
+  end
+
+  module MAC : sig
+    type t
+    val create : string -> t
+    val destroy: t -> unit (* TODO: GC finalize instead *)
+    val output_length : t -> int
+    val set_key : t -> string -> unit
     val clear : t -> unit
     val update : t -> string -> unit
     val final: t -> string
