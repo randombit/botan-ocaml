@@ -1,18 +1,18 @@
 (*
-* OCaml binding for botan (https://botan.randombit.net)
-* (C) 2015,2017 Jack Lloyd
-*
-* Botan is released under the Simplified BSD License (see license.txt)
-*)
+ * OCaml binding for botan (https://botan.randombit.net)
+ * (C) 2015,2017 Jack Lloyd
+ *
+ * Botan is released under the Simplified BSD License (see license.txt)
+ *)
 
 open Ctypes
 open Foreign
 
 exception Botan_Error of int
 
-(* TODO: translate error code to string 
+(* TODO: translate error code to string
 TODO: Don't evaluate res unless rc == 0
-*)
+ *)
 let result_or_exn rc res =
   match rc with
   | 0 -> res
@@ -67,16 +67,16 @@ module Botan = struct
     let bin = allocate_n ~count:bin_len char in
     let ol = allocate_n ~count:1 size_t in
     begin
-       ol <-@ (to_size_t bin_len);
-       let rc = hex_decode hex (to_size_t hex_len) bin ol in
-       result_or_exn rc (string_from_ptr bin bin_len)
+      ol <-@ (to_size_t bin_len);
+      let rc = hex_decode hex (to_size_t hex_len) bin ol in
+      result_or_exn rc (string_from_ptr bin bin_len)
     end
 
   (* Bcrypt *)
   let bcrypt pass rng work_factor =
     let bcrypt =
       foreign "botan_bcrypt_generate" (ptr char @-> ptr size_t @->
-        string @-> ptr void @-> size_t @-> uint32_t @-> returning int) in
+                                         string @-> ptr void @-> size_t @-> uint32_t @-> returning int) in
     let bcrypt_size = 61 (* FIXME *) in
     let alloc_size = allocate size_t (to_size_t bcrypt_size) in
     let res = allocate_n ~count:bcrypt_size char in
@@ -237,25 +237,23 @@ let () =
   let mac = Botan.MAC.create "HMAC(SHA-256)" in
   let key = Botan.hex_decode "F00FB00F" in
   begin
-      Botan.MAC.set_key mac key;
-      Botan.MAC.update mac "hi chappy";
-      print_string (Botan.hex_encode (Botan.MAC.final mac) ^ "\n")
+    Botan.MAC.set_key mac key;
+    Botan.MAC.update mac "hi chappy";
+    print_string (Botan.hex_encode (Botan.MAC.final mac) ^ "\n")
   end
 
-(*
+    (*
+
 let () =
   let key = Botan.hex_decode("414243") in
   print_string (key)
-*)
 
-(*
 let () =
   let rng = Botan.RNG.create "user" in
   let bcrypt = Botan.bcrypt "pass" rng 10 in
   let ok = Botan.check_bcrypt "pass" bcrypt in
   let nok = Botan.check_bcrypt "something else" bcrypt in
   print_string (Printf.sprintf "%s %B %B\n" bcrypt ok nok)
-
 
 let () =
   let (maj,min,patch) = Botan.version in
@@ -269,5 +267,5 @@ let () =
     print_string (Botan.hex_encode (Botan.Hash.final h) ^ "\n");
     Botan.Hash.destroy h
   end
-*)
 
+     *)
