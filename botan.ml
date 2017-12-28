@@ -191,6 +191,58 @@ module Botan = struct
 
   end (* MAC *)
 
+  module BlockCipher = struct
+    type t = unit ptr
+    let block_cipher_t : t typ = ptr void
+
+    let create name =
+      let block_cipher_init =
+        foreign "botan_block_cipher_init" (ptr block_cipher_t @-> string @-> uint32_t @-> returning int) in
+      let o = allocate_n ~count:1 block_cipher_t in
+      let rc = block_cipher_init o name (to_uint32 0) in
+      result_or_exn rc (!@ o)
+
+    let destroy block_cipher =
+      let block_cipher_destroy =
+        foreign "botan_block_cipher_destroy" (block_cipher_t @-> returning int) in
+      let rc = block_cipher_destroy block_cipher in
+      result_or_exn rc ()
+
+    let block_size block_cipher =
+      let block_cipher_block_size =
+        foreign "botan_block_cipher_block_size" (block_cipher_t @-> returning int) in
+      block_cipher_block_size block_cipher
+
+    let clear block_cipher =
+      let block_cipher_clear =
+        foreign "botan_block_cipher_clear" (block_cipher_t @-> returning int) in
+      let rc = block_cipher_clear block_cipher in
+      result_or_exn rc ()
+
+    let set_key block_cipher key =
+      let block_cipher_set_key = foreign "botan_block_cipher_set_key" (block_cipher_t @-> string @-> size_t @-> returning int) in
+      let rc = block_cipher_set_key block_cipher key (to_size_t (String.length key)) in
+      result_or_exn rc ()
+
+    let _encrypt_or_decrypt block_cipher input cipher_fn =
+      let input_bytes = (String.length input) in
+      let input_blocks = input_bytes / (block_size block_cipher) in
+      let output = allocate_n ~count:input_bytes char in
+      let rc = cipher_fn block_cipher input output (to_size_t input_blocks) in
+      result_or_exn rc (string_from_ptr output input_bytes)
+
+    let encrypt block_cipher input =
+      let block_cipher_encrypt_blocks =
+        foreign "botan_block_cipher_encrypt_blocks" (block_cipher_t @-> string @-> ptr char @-> size_t @-> returning int) in
+      _encrypt_or_decrypt block_cipher input block_cipher_encrypt_blocks
+
+    let decrypt block_cipher input =
+      let block_cipher_decrypt_blocks =
+        foreign "botan_block_cipher_decrypt_blocks" (block_cipher_t @-> string @-> ptr char @-> size_t @-> returning int) in
+      _encrypt_or_decrypt block_cipher input block_cipher_decrypt_blocks
+
+  end (* BlockCipher *)
+
   module RNG = struct
     type t = unit ptr
     let rng_t : t typ = ptr void
@@ -234,6 +286,20 @@ module Botan = struct
 end (* Botan *)
 
 let () =
+  let bc = Botan.BlockCipher.create "AES-128" in
+  let key = Botan.hex_decode "000102030405060708090A0B0C0D0E0F" in
+  let input = Botan.hex_decode "00112233445566778899AABBCCDDEEFF" in
+  begin
+    (*69C4E0D86A7B0430D8CDB78070B4C55A*)
+    Botan.BlockCipher.set_key bc key;
+    let ct = Botan.BlockCipher.encrypt bc input in
+    let pt = Botan.BlockCipher.decrypt bc ct in
+    print_string ((Botan.hex_encode ct) ^ "\n" ^ (Botan.hex_encode pt) ^ "\n")
+  end
+
+    (*
+
+let () =
   let mac = Botan.MAC.create "HMAC(SHA-256)" in
   let key = Botan.hex_decode "F00FB00F" in
   begin
@@ -241,8 +307,6 @@ let () =
     Botan.MAC.update mac "hi chappy";
     print_string (Botan.hex_encode (Botan.MAC.final mac) ^ "\n")
   end
-
-    (*
 
 let () =
   let key = Botan.hex_decode("414243") in

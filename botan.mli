@@ -45,5 +45,16 @@ module Botan : sig
     val final: t -> string
   end
 
+  module BlockCipher : sig
+    type t
+    val create : string -> t
+    val destroy: t -> unit (* TODO: GC finalize instead *)
+    val clear : t -> unit
+    val block_size : t -> int
+    val set_key : t -> string -> unit
+    val encrypt : t -> string -> string
+  end
+
+
 
 end
